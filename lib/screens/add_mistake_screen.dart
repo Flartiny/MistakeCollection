@@ -25,6 +25,8 @@ class _AddMistakeScreenState extends State<AddMistakeScreen> {
   
   String? _imagePath;
   bool _isProcessing = false;
+  String _processingStatus = '';
+  bool _canCancel = false;
 
   @override
   void dispose() {
@@ -38,60 +40,28 @@ class _AddMistakeScreenState extends State<AddMistakeScreen> {
 
   Future<void> _pickImage(ImageSource source) async {
     try {
-      final XFile? image = await _picker.pickImage(source: source);
+      final XFile? image = await _picker.pickImage(
+        source: source,
+        maxWidth: 1920, // 限制图片最大宽度
+        maxHeight: 1920, // 限制图片最大高度
+        imageQuality: 85, // 压缩质量
+      );
+      
       if (image != null) {
+        // 立即显示图片，不等待处理
         setState(() {
           _imagePath = image.path;
-          _isProcessing = true;
+          _isProcessing = false;
+          _processingStatus = '';
         });
 
-        try {
-          // 图片预处理
-          final processedPath = await _ocrService.preprocessImage(image.path);
-          
-          // OCR识别
-          final recognizedText = await _ocrService.recognizeText(processedPath);
-          
-          // AI自动分类
-          final classification = await _ocrService.classifyQuestionWithAI(recognizedText);
-          
-          setState(() {
-            _contentController.text = recognizedText;
-            _subjectController.text = classification['subject'] ?? '';
-            _questionTypeController.text = classification['questionType'] ?? '';
-            _knowledgePointController.text = classification['knowledgePoint'] ?? '';
-            _isProcessing = false;
-          });
-          
-          // 如果OCR识别结果为空，提示用户
-          if (recognizedText.isEmpty) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('图片识别失败，请手动输入题目内容'),
-                  duration: Duration(seconds: 3),
-                ),
-              );
-            }
-          }
-        } catch (ocrError) {
-          setState(() {
-            _isProcessing = false;
-          });
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('OCR识别失败: $ocrError，请手动输入题目内容'),
-                duration: const Duration(seconds: 3),
-              ),
-            );
-          }
-        }
+        // 延迟一下再开始处理，让用户先看到图片
+        await Future.delayed(const Duration(milliseconds: 500));
+        
+        // 开始异步处理
+        _processImageAsync(image.path);
       }
     } catch (e) {
-      setState(() {
-        _isProcessing = false;
-      });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -101,6 +71,90 @@ class _AddMistakeScreenState extends State<AddMistakeScreen> {
         );
       }
     }
+  }
+
+  Future<void> _processImageAsync(String imagePath) async {
+    if (!mounted) return;
+    
+    setState(() {
+      _isProcessing = true;
+      _processingStatus = '正在识别文字...';
+      _canCancel = true;
+    });
+
+    try {
+      // 第一步：OCR识别
+      final recognizedText = await _ocrService.recognizeText(imagePath);
+      
+      if (!mounted) return;
+      
+      setState(() {
+        _processingStatus = '正在分析题目类型...';
+      });
+
+      // 第二步：AI分类
+      final classification = await _ocrService.classifyQuestionWithAI(recognizedText);
+      
+      if (!mounted) return;
+      
+      // 更新UI
+      setState(() {
+        _contentController.text = recognizedText;
+        _subjectController.text = classification['subject'] ?? '';
+        _questionTypeController.text = classification['questionType'] ?? '';
+        _knowledgePointController.text = classification['knowledgePoint'] ?? '';
+        _isProcessing = false;
+        _processingStatus = '';
+        _canCancel = false;
+      });
+      
+      // 如果OCR识别结果为空，提示用户
+      if (recognizedText.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('图片识别失败，请手动输入题目内容'),
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+      } else {
+        // 成功提示
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('图片识别完成！'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } catch (ocrError) {
+      if (!mounted) return;
+      
+      setState(() {
+        _isProcessing = false;
+        _processingStatus = '';
+        _canCancel = false;
+      });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('OCR识别失败: $ocrError，请手动输入题目内容'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  void _cancelProcessing() {
+    setState(() {
+      _isProcessing = false;
+      _processingStatus = '';
+      _canCancel = false;
+    });
   }
 
   void _showImageSourceDialog() {
@@ -221,52 +275,11 @@ class _AddMistakeScreenState extends State<AddMistakeScreen> {
                               label: Text(_imagePath == null ? '选择图片' : '重新选择'),
                             ),
                           ),
-                          if (_imagePath != null) ...[
+                          if (_imagePath != null && !_isProcessing) ...[
                             const SizedBox(width: 16),
                             Expanded(
                               child: ElevatedButton.icon(
-                                onPressed: _isProcessing ? null : () async {
-                                  setState(() {
-                                    _isProcessing = true;
-                                  });
-                                  
-                                  try {
-                                    final recognizedText = await _ocrService.recognizeText(_imagePath!);
-                                    final classification = await _ocrService.classifyQuestionWithAI(recognizedText);
-                                    
-                                    setState(() {
-                                      _contentController.text = recognizedText;
-                                      _subjectController.text = classification['subject'] ?? '';
-                                      _questionTypeController.text = classification['questionType'] ?? '';
-                                      _knowledgePointController.text = classification['knowledgePoint'] ?? '';
-                                      _isProcessing = false;
-                                    });
-                                    
-                                    // 如果OCR识别结果为空，提示用户
-                                    if (recognizedText.isEmpty) {
-                                      if (mounted) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          const SnackBar(
-                                            content: Text('图片识别失败，请手动输入题目内容'),
-                                            duration: Duration(seconds: 3),
-                                          ),
-                                        );
-                                      }
-                                    }
-                                  } catch (ocrError) {
-                                    setState(() {
-                                      _isProcessing = false;
-                                    });
-                                    if (mounted) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(
-                                          content: Text('OCR识别失败: $ocrError，请手动输入题目内容'),
-                                          duration: const Duration(seconds: 3),
-                                        ),
-                                      );
-                                    }
-                                  }
-                                },
+                                onPressed: () => _processImageAsync(_imagePath!),
                                 icon: const Icon(Icons.refresh),
                                 label: const Text('重新识别'),
                               ),
@@ -276,9 +289,68 @@ class _AddMistakeScreenState extends State<AddMistakeScreen> {
                       ),
                       if (_isProcessing) ...[
                         const SizedBox(height: 16),
-                        const CircularProgressIndicator(),
-                        const SizedBox(height: 8),
-                        const Text('正在处理图片...'),
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                          ),
+                          child: Column(
+                            children: [
+                              Row(
+                                children: [
+                                  const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          _processingStatus,
+                                          style: const TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w500,
+                                            color: Colors.blue,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        const Text(
+                                          '请稍候，正在处理中...',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (_canCancel) ...[
+                                const SizedBox(height: 12),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: TextButton(
+                                    onPressed: _cancelProcessing,
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: Colors.red,
+                                      padding: const EdgeInsets.symmetric(vertical: 8),
+                                    ),
+                                    child: const Text('取消处理'),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
                       ],
                     ],
                   ),

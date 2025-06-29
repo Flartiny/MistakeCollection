@@ -25,56 +25,79 @@ class OCRService {
 
       // 读取图片文件
       final File imageFile = File(imagePath);
+      if (!await imageFile.exists()) {
+        throw Exception('图片文件不存在');
+      }
+      
       final Uint8List imageBytes = await imageFile.readAsBytes();
+      
+      // 检查图片大小，如果太大则压缩
+      if (imageBytes.length > 4 * 1024 * 1024) { // 4MB
+        final img.Image? image = img.decodeImage(imageBytes);
+        if (image != null) {
+          // 压缩图片
+          final img.Image resized = img.copyResize(image, width: 1024);
+          final Uint8List compressedBytes = img.encodeJpg(resized, quality: 85);
+          
+          // 将图片转换为base64
+          final String base64Image = base64Encode(compressedBytes);
+          
+          return await _performOCR(base64Image, apiKey);
+        }
+      }
       
       // 将图片转换为base64
       final String base64Image = base64Encode(imageBytes);
       
-      // 构建请求体
-      final Map<String, dynamic> requestBody = {
-        'contents': [
-          {
-            'parts': [
-              {
-                'text': '请识别这张图片中的文字内容，只返回识别到的文字，不要添加任何解释或格式。'
-              },
-              {
-                'inline_data': {
-                  'mime_type': 'image/jpeg',
-                  'data': base64Image
-                }
-              }
-            ]
-          }
-        ],
-        'generationConfig': {
-          'temperature': 0.1,
-          'topK': 1,
-          'topP': 1,
-          'maxOutputTokens': 2048,
-        }
-      };
-
-      // 发送请求
-      final response = await http.post(
-        Uri.parse('$_baseUrl?key=$apiKey'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode(requestBody),
-      );
-
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> responseData = jsonDecode(response.body);
-        final String text = responseData['candidates'][0]['content']['parts'][0]['text'];
-        return text.trim();
-      } else {
-        print('Gemini API请求失败: ${response.statusCode} - ${response.body}');
-        return '';
-      }
+      return await _performOCR(base64Image, apiKey);
     } catch (e) {
       print('OCR识别失败: $e');
-      return '';
+      throw Exception('OCR识别失败: $e');
+    }
+  }
+
+  Future<String> _performOCR(String base64Image, String apiKey) async {
+    // 构建请求体
+    final Map<String, dynamic> requestBody = {
+      'contents': [
+        {
+          'parts': [
+            {
+              'text': '请识别这张图片中的文字内容，只返回识别到的文字，不要添加任何解释或格式。'
+            },
+            {
+              'inline_data': {
+                'mime_type': 'image/jpeg',
+                'data': base64Image
+              }
+            }
+          ]
+        }
+      ],
+      'generationConfig': {
+        'temperature': 0.1,
+        'topK': 1,
+        'topP': 1,
+        'maxOutputTokens': 2048,
+      }
+    };
+
+    // 发送请求
+    final response = await http.post(
+      Uri.parse('$_baseUrl?key=$apiKey'),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(requestBody),
+    ).timeout(const Duration(seconds: 30)); // 添加超时
+
+    if (response.statusCode == 200) {
+      final Map<String, dynamic> responseData = jsonDecode(response.body);
+      final String text = responseData['candidates'][0]['content']['parts'][0]['text'];
+      return text.trim();
+    } else {
+      print('Gemini API请求失败: ${response.statusCode} - ${response.body}');
+      throw Exception('API请求失败: ${response.statusCode}');
     }
   }
 
@@ -224,35 +247,11 @@ class OCRService {
     }
   }
 
-  // 图片预处理
-  Future<String> preprocessImage(String imagePath) async {
-    try {
-      final File imageFile = File(imagePath);
-      final Uint8List imageBytes = await imageFile.readAsBytes();
-      final img.Image? image = img.decodeImage(imageBytes);
-      
-      if (image == null) return imagePath;
-
-      // 图片增强处理
-      img.Image processedImage = image;
-      
-      // 调整对比度
-      processedImage = img.contrast(processedImage, contrast: 150);
-      
-      // 调整亮度（使用gamma调整）
-      processedImage = img.gamma(processedImage, gamma: 0.8);
-      
-      // 保存处理后的图片
-      final String processedPath = imagePath.replaceAll('.jpg', '_processed.jpg');
-      final File processedFile = File(processedPath);
-      await processedFile.writeAsBytes(img.encodeJpg(processedImage));
-      
-      return processedPath;
-    } catch (e) {
-      print('图片预处理失败: $e');
-      return imagePath;
-    }
-  }
+  // 移除图片预处理方法，直接使用原图
+  // Future<String> preprocessImage(String imagePath) async {
+  //   // 移除预处理步骤以减少卡顿
+  //   return imagePath;
+  // }
 
   void dispose() {
     // 不需要释放资源
