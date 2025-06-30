@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../providers/mistake_provider.dart';
 import '../models/mistake.dart';
 import '../services/ocr_service.dart';
+import 'package:image_cropper/image_cropper.dart';
 
 class AddMistakeScreen extends StatefulWidget {
   const AddMistakeScreen({super.key});
@@ -46,20 +47,37 @@ class _AddMistakeScreenState extends State<AddMistakeScreen> {
         maxHeight: 1920, // 限制图片最大高度
         imageQuality: 85, // 压缩质量
       );
-      
       if (image != null) {
-        // 立即显示图片，不等待处理
-        setState(() {
-          _imagePath = image.path;
-          _isProcessing = false;
-          _processingStatus = '';
-        });
-
-        // 延迟一下再开始处理，让用户先看到图片
-        await Future.delayed(const Duration(milliseconds: 500));
-        
-        // 开始异步处理
-        _processImageAsync(image.path);
+        // 先进入图片编辑
+        final croppedFile = await ImageCropper().cropImage(
+          sourcePath: image.path,
+          uiSettings: [
+            AndroidUiSettings(
+              toolbarTitle: '编辑图片',
+              toolbarColor: Colors.blue,
+              toolbarWidgetColor: Colors.white,
+              initAspectRatio: CropAspectRatioPreset.original,
+              lockAspectRatio: false,
+            ),
+            IOSUiSettings(
+              title: '编辑图片',
+            ),
+            WebUiSettings(
+              context: context,
+              presentStyle: WebPresentStyle.dialog,
+            ),
+          ],
+        );
+        if (croppedFile != null) {
+          setState(() {
+            _imagePath = croppedFile.path;
+            _isProcessing = false;
+            _processingStatus = '';
+          });
+          // 编辑后自动识别
+          await Future.delayed(const Duration(milliseconds: 500));
+          _processImageAsync(croppedFile.path);
+        }
       }
     } catch (e) {
       if (mounted) {

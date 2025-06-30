@@ -37,6 +37,9 @@ dependencies:
   
   # 日期时间
   intl: ^0.18.1
+  
+  # 图片裁剪
+  image_cropper: ^9.1.0
 
 dev_dependencies:
   flutter_test:
