@@ -14,11 +14,19 @@ class ReviewScreen extends StatefulWidget {
 class _ReviewScreenState extends State<ReviewScreen> {
   int _currentIndex = 0;
   List<Mistake> _reviewMistakes = [];
+  PageController? _pageController;
 
   @override
   void initState() {
     super.initState();
+    _pageController = PageController();
     _loadReviewMistakes();
+  }
+
+  @override
+  void dispose() {
+    _pageController?.dispose();
+    super.dispose();
   }
 
   Future<void> _loadReviewMistakes() async {
@@ -49,13 +57,22 @@ class _ReviewScreenState extends State<ReviewScreen> {
               children: [
                 _buildProgressIndicator(),
                 Expanded(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      children: [
-                        _buildReviewCard(),
-                        _buildActionButtons(),
-                      ],
-                    ),
+                  child: PageView.builder(
+                    controller: _pageController,
+                    itemCount: _reviewMistakes.length,
+                    onPageChanged: (index) {
+                      setState(() {
+                        _currentIndex = index;
+                      });
+                    },
+                    itemBuilder: (context, index) {
+                      return Column(
+                        children: [
+                          _buildReviewCard(index),
+                          _buildActionButtons(),
+                        ],
+                      );
+                    },
                   ),
                 ),
               ],
@@ -139,12 +156,12 @@ class _ReviewScreenState extends State<ReviewScreen> {
     );
   }
 
-  Widget _buildReviewCard() {
-    if (_currentIndex >= _reviewMistakes.length) {
+  Widget _buildReviewCard([int? index]) {
+    final int showIndex = index ?? _currentIndex;
+    if (showIndex >= _reviewMistakes.length) {
       return _buildEmptyState();
     }
-
-    final mistake = _reviewMistakes[_currentIndex];
+    final mistake = _reviewMistakes[showIndex];
     final provider = context.read<MistakeProvider>();
     final nextReviewTime = provider.calculateNextReviewTime(mistake);
 
@@ -349,14 +366,20 @@ class _ReviewScreenState extends State<ReviewScreen> {
 
   void _handleReviewResult(bool isCompleted) async {
     if (_currentIndex >= _reviewMistakes.length) return;
-
     final mistake = _reviewMistakes[_currentIndex];
     final provider = context.read<MistakeProvider>();
 
     if (isCompleted) {
       // 标记为已完成
       await provider.markAsCompleted(mistake.id!);
-      
+      // 本地移除该题
+      setState(() {
+        _reviewMistakes.removeAt(_currentIndex);
+        // 如果已到最后一题，回退一页
+        if (_currentIndex >= _reviewMistakes.length && _currentIndex > 0) {
+          _currentIndex--;
+        }
+      });
       // 显示成功消息
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -376,26 +399,38 @@ class _ReviewScreenState extends State<ReviewScreen> {
         reviewCount: mistake.reviewCount + 1,
       );
       await provider.updateMistake(updatedMistake);
-      
+      setState(() {
+        // 替换本地该题为新数据
+        _reviewMistakes[_currentIndex] = updatedMistake;
+        // 按下次复习时间重新排序
+        _reviewMistakes.sort((a, b) {
+          final aNext = provider.calculateNextReviewTime(a);
+          final bNext = provider.calculateNextReviewTime(b);
+          return aNext.compareTo(bNext);
+        });
+        // 找到新位置
+        final newIndex = _reviewMistakes.indexWhere((m) => m.id == updatedMistake.id);
+        // 跳转到新位置或下一个题目
+        if (newIndex < _reviewMistakes.length - 1) {
+          _currentIndex = newIndex + 1;
+        } else {
+          _currentIndex = newIndex;
+        }
+      });
+      // 跳转动画
+      if (_reviewMistakes.isNotEmpty) {
+        _pageController?.animateToPage(
+          _currentIndex,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('已记录，下次继续复习'),
           backgroundColor: Colors.orange,
         ),
       );
-    }
-
-    // 移动到下一题
-    setState(() {
-      _currentIndex++;
-    });
-
-    // 如果复习完成，重新加载题目
-    if (_currentIndex >= _reviewMistakes.length) {
-      await _loadReviewMistakes();
-      setState(() {
-        _currentIndex = 0;
-      });
     }
   }
 
