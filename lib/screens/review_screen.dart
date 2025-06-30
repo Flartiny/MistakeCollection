@@ -12,8 +12,6 @@ class ReviewScreen extends StatefulWidget {
 }
 
 class _ReviewScreenState extends State<ReviewScreen> {
-  String _selectedMode = '日常复习';
-  final List<String> _modes = ['日常复习', '考前突击'];
   int _currentIndex = 0;
   List<Mistake> _reviewMistakes = [];
 
@@ -44,34 +42,6 @@ class _ReviewScreenState extends State<ReviewScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('错题复习'),
-        actions: [
-          PopupMenuButton<String>(
-            onSelected: (String value) {
-              setState(() {
-                _selectedMode = value;
-                _currentIndex = 0;
-              });
-            },
-            itemBuilder: (BuildContext context) {
-              return _modes.map((String mode) {
-                return PopupMenuItem<String>(
-                  value: mode,
-                  child: Text(mode),
-                );
-              }).toList();
-            },
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(_selectedMode),
-                  const Icon(Icons.arrow_drop_down),
-                ],
-              ),
-            ),
-          ),
-        ],
       ),
       body: _reviewMistakes.isEmpty
           ? _buildEmptyState()

@@ -178,6 +178,22 @@ class OCRService {
     };
   }
 
+  /// 清理API返回的被markdown代码块包裹的json字符串
+  String cleanJsonString(String response) {
+    final regex = RegExp(r'```(?:json)?\s*([\s\S]*?)\s*```', multiLine: true);
+    final match = regex.firstMatch(response);
+    if (match != null) {
+      return match.group(1)!.trim();
+    }
+    return response.trim();
+  }
+
+  /// 尝试解析API返回的json，无论是否被代码块包裹
+  dynamic parseApiJson(String response) {
+    final cleaned = cleanJsonString(response);
+    return jsonDecode(cleaned);
+  }
+
   // 使用Gemini API进行智能分类
   Future<Map<String, String>> classifyQuestionWithAI(String text) async {
     try {
@@ -225,9 +241,9 @@ class OCRService {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
         final String resultText = responseData['candidates'][0]['content']['parts'][0]['text'];
         
-        // 尝试解析JSON
+        // 尝试解析JSON，先去除markdown代码块
         try {
-          final Map<String, dynamic> result = jsonDecode(resultText);
+          final Map<String, dynamic> result = parseApiJson(resultText);
           return {
             'subject': result['subject'] ?? '其他',
             'questionType': result['questionType'] ?? '其他',
