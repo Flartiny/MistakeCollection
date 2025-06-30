@@ -393,9 +393,15 @@ class _ReviewScreenState extends State<ReviewScreen> {
         ),
       );
     } else {
-      // 更新复习时间
+      // 更新复习时间，超时未复习的题目，lastReviewed至少更新到今天
+      DateTime now = DateTime.now();
+      DateTime today = DateTime(now.year, now.month, now.day);
+      DateTime lastReviewed = mistake.lastReviewed;
+      if (lastReviewed.isBefore(today)) {
+        lastReviewed = today;
+      }
       final updatedMistake = mistake.copyWith(
-        lastReviewed: DateTime.now(),
+        lastReviewed: lastReviewed,
         reviewCount: mistake.reviewCount + 1,
       );
       await provider.updateMistake(updatedMistake);
