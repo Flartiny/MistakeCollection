@@ -5,17 +5,20 @@ import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// OCR服务，负责图片文字识别、AI智能分类、API密钥管理等
+/// OCRService类：负责图片文字识别、题目分类（本地/AI）、API密钥管理等核心功能
 class OCRService {
-  // Gemini API配置
+  // Gemini API配置，指定API请求的基础URL
   static const String _baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent';
   
-  // 获取API密钥
+  /// 获取Gemini API密钥（从本地SharedPreferences存储中读取）
   Future<String?> _getApiKey() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('gemini_api_key');
   }
 
-  // OCR识别图片文字
+  /// OCR识别图片文字，输入图片路径，返回识别到的文字内容
+  /// 1. 检查API密钥 2. 读取图片并判断大小 3. 超过4MB则压缩 4. 转base64 5. 调用Gemini API
   Future<String> recognizeText(String imagePath) async {
     try {
       final apiKey = await _getApiKey();
@@ -23,7 +26,7 @@ class OCRService {
         throw Exception('请先配置Gemini API密钥');
       }
 
-      // 读取图片文件
+      // 读取图片文件，若不存在则报错
       final File imageFile = File(imagePath);
       if (!await imageFile.exists()) {
         throw Exception('图片文件不存在');
@@ -31,22 +34,22 @@ class OCRService {
       
       final Uint8List imageBytes = await imageFile.readAsBytes();
       
-      // 检查图片大小，如果太大则压缩
+      // 检查图片大小，超过4MB则压缩，防止API请求失败
       if (imageBytes.length > 4 * 1024 * 1024) { // 4MB
         final img.Image? image = img.decodeImage(imageBytes);
         if (image != null) {
-          // 压缩图片
+          // 压缩图片到宽度1024像素，质量85
           final img.Image resized = img.copyResize(image, width: 1024);
           final Uint8List compressedBytes = img.encodeJpg(resized, quality: 85);
           
-          // 将图片转换为base64
+          // 将图片转换为base64字符串
           final String base64Image = base64Encode(compressedBytes);
           
           return await _performOCR(base64Image, apiKey);
         }
       }
       
-      // 将图片转换为base64
+      // 将图片转换为base64字符串
       final String base64Image = base64Encode(imageBytes);
       
       return await _performOCR(base64Image, apiKey);
@@ -56,8 +59,9 @@ class OCRService {
     }
   }
 
+  /// 实际调用Gemini API进行OCR识别，传入base64图片和API Key，返回识别文本
   Future<String> _performOCR(String base64Image, String apiKey) async {
-    // 构建请求体
+    // 构建API请求体，指定图片内容和识别指令
     final Map<String, dynamic> requestBody = {
       'contents': [
         {
@@ -75,14 +79,14 @@ class OCRService {
         }
       ],
       'generationConfig': {
-        'temperature': 0.1,
+        'temperature': 0.1, // 控制生成内容的多样性
         'topK': 1,
         'topP': 1,
-        'maxOutputTokens': 2048,
+        'maxOutputTokens': 2048, // 最大输出长度
       }
     };
 
-    // 发送请求
+    // 发送POST请求到Gemini API，超时时间30秒
     final response = await http.post(
       Uri.parse('$_baseUrl?key=$apiKey'),
       headers: {
@@ -92,6 +96,7 @@ class OCRService {
     ).timeout(const Duration(seconds: 30)); // 添加超时
 
     if (response.statusCode == 200) {
+      // 解析API返回的JSON，提取识别到的文字
       final Map<String, dynamic> responseData = jsonDecode(response.body);
       final String text = responseData['candidates'][0]['content']['parts'][0]['text'];
       return text.trim();
@@ -101,9 +106,10 @@ class OCRService {
     }
   }
 
-  // 自动分类题目
+  /// 本地关键词自动分类题目，输入题目文本，输出学科/题型/知识点
+  /// 通过关键词字典匹配，优先级：学科>题型>知识点，未命中则为"其他"
   Map<String, String> classifyQuestion(String text) {
-    // 学科分类关键词
+    // 学科分类关键词，支持多学科
     final subjectKeywords = {
       '数学': ['函数', '方程', '几何', '代数', '微积分', '概率', '统计', '三角函数', '导数', '积分', '向量', '矩阵'],
       '物理': ['力学', '电学', '光学', '热学', '原子', '分子', '能量', '速度', '加速度', '力', '电场', '磁场', '波'],
@@ -126,7 +132,7 @@ class OCRService {
       '论述题': ['论述', '分析', '阐述', '说明', '解释'],
     };
 
-    // 知识点分类（简化版）
+    // 知识点分类关键词
     final knowledgeKeywords = {
       '基础概念': ['定义', '概念', '基本', '原理', '性质', '特征'],
       '计算应用': ['计算', '求解', '应用', '运用', '公式', '算法'],
@@ -139,7 +145,7 @@ class OCRService {
     String questionType = '其他';
     String knowledgePoint = '其他';
 
-    // 识别学科
+    // 识别学科（只要命中一个关键词即判定）
     for (final entry in subjectKeywords.entries) {
       for (final keyword in entry.value) {
         if (text.contains(keyword)) {
@@ -179,7 +185,7 @@ class OCRService {
     };
   }
 
-  /// 清理API返回的被markdown代码块包裹的json字符串
+  /// 清理API返回的被markdown代码块包裹的json字符串，便于后续解析
   String cleanJsonString(String response) {
     final regex = RegExp(r'```(?:json)?\s*([\s\S]*?)\s*```', multiLine: true);
     final match = regex.firstMatch(response);
@@ -189,13 +195,14 @@ class OCRService {
     return response.trim();
   }
 
-  /// 尝试解析API返回的json，无论是否被代码块包裹
+  /// 尝试解析API返回的json，无论是否被代码块包裹，失败会抛出异常
   dynamic parseApiJson(String response) {
     final cleaned = cleanJsonString(response);
     return jsonDecode(cleaned);
   }
 
-  // 使用Gemini API进行智能分类
+  /// 使用Gemini API进行智能分类，优先AI，失败回退本地关键词分类
+  /// 返回Map包含subject、questionType、knowledgePoint
   Future<Map<String, String>> classifyQuestionWithAI(String text) async {
     try {
       final apiKey = await _getApiKey();
@@ -203,6 +210,7 @@ class OCRService {
         throw Exception('请先配置Gemini API密钥');
       }
 
+      // 构造AI分类请求体，要求返回JSON格式
       final Map<String, dynamic> requestBody = {
         'contents': [
           {
@@ -264,12 +272,7 @@ class OCRService {
     }
   }
 
-  // 移除图片预处理方法，直接使用原图
-  // Future<String> preprocessImage(String imagePath) async {
-  //   // 移除预处理步骤以减少卡顿
-  //   return imagePath;
-  // }
-
+  // 目前无资源需释放，保留接口
   void dispose() {
     // 不需要释放资源
   }

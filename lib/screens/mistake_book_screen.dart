@@ -6,6 +6,7 @@ import '../providers/mistake_provider.dart';
 import '../models/mistake.dart';
 
 class MistakeBookScreen extends StatefulWidget {
+  /// 错题本页面，负责错题的分组展示与管理
   const MistakeBookScreen({super.key});
 
   @override
@@ -13,11 +14,12 @@ class MistakeBookScreen extends StatefulWidget {
 }
 
 class _MistakeBookScreenState extends State<MistakeBookScreen> {
-  String _selectedCategory = '学科';
-  final List<String> _categories = ['学科', '题型', '知识点'];
+  String _selectedCategory = '学科'; // 当前分组方式
+  final List<String> _categories = ['学科', '题型', '知识点']; // 可选分组类型
 
   @override
   Widget build(BuildContext context) {
+    // Scaffold为页面基础结构，包含AppBar、主体内容
     return Scaffold(
       appBar: AppBar(
         title: const Text('错题本'),
@@ -56,6 +58,7 @@ class _MistakeBookScreenState extends State<MistakeBookScreen> {
           }
 
           if (provider.mistakes.isEmpty) {
+            // 空状态提示
             return const Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -85,6 +88,7 @@ class _MistakeBookScreenState extends State<MistakeBookScreen> {
             );
           }
 
+          // 按当前分组方式对错题进行分组
           Map<String, List<Mistake>> groupedMistakes;
           switch (_selectedCategory) {
             case '学科':
@@ -100,6 +104,7 @@ class _MistakeBookScreenState extends State<MistakeBookScreen> {
               groupedMistakes = provider.getMistakesBySubject();
           }
 
+          // 列表展示所有分组卡片，每个卡片可折叠，内含错题列表
           return ListView.builder(
             padding: const EdgeInsets.all(16.0),
             itemCount: groupedMistakes.length,
@@ -173,6 +178,7 @@ class _MistakeBookScreenState extends State<MistakeBookScreen> {
   }
 
   Widget _buildMistakeItem(Mistake mistake) {
+    // 构建单个错题展示卡片，支持长按编辑、删除
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: const EdgeInsets.all(16),

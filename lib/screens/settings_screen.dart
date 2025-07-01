@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// 设置界面，支持Gemini API密钥配置、功能说明展示
 class SettingsScreen extends StatefulWidget {
+  /// 设置页，负责API密钥管理和功能说明
   const SettingsScreen({super.key});
 
   @override
@@ -9,13 +11,13 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  final _apiKeyController = TextEditingController();
-  bool _isLoading = true;
+  final _apiKeyController = TextEditingController(); // API密钥输入框控制器
+  bool _isLoading = true; // 是否正在加载密钥
 
   @override
   void initState() {
     super.initState();
-    _loadApiKey();
+    _loadApiKey(); // 初始化时加载本地API密钥
   }
 
   @override
@@ -25,6 +27,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _loadApiKey() async {
+    // 从本地存储读取API密钥，自动填充到输入框
     final prefs = await SharedPreferences.getInstance();
     final apiKey = prefs.getString('gemini_api_key') ?? '';
     setState(() {
@@ -34,6 +37,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _saveApiKey() async {
+    // 保存API密钥到本地存储，并提示用户
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('gemini_api_key', _apiKeyController.text.trim());
     
@@ -49,6 +53,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Scaffold为页面基础结构，包含AppBar、主体内容
     return Scaffold(
       appBar: AppBar(
         title: const Text('设置'),
@@ -69,7 +74,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // API配置卡片
+                  // API配置卡片，支持密钥输入与保存
                   Card(
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),
@@ -161,7 +166,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   const SizedBox(height: 24),
                   
-                  // 功能说明卡片
+                  // 功能说明卡片，介绍OCR和智能分类等功能
                   Card(
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),

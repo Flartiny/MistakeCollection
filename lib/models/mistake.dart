@@ -1,16 +1,18 @@
+/// 错题数据模型，包含内容、学科、题型、知识点、图片、时间、复习等属性
 class Mistake {
-  final int? id;
-  final String content;
-  final String subject;
-  final String questionType;
-  final String knowledgePoint;
-  final String? imagePath;
-  final DateTime createdAt;
-  final DateTime lastReviewed;
-  final int reviewCount;
-  final double difficulty;
-  final bool isCompleted;
+  final int? id; // 主键，自增
+  final String content; // 题目内容
+  final String subject; // 学科
+  final String questionType; // 题型
+  final String knowledgePoint; // 知识点
+  final String? imagePath; // 图片路径
+  final DateTime createdAt; // 创建时间
+  final DateTime lastReviewed; // 上次复习时间
+  final int reviewCount; // 复习次数
+  final double difficulty; // 难度系数
+  final bool isCompleted; // 是否已完成
 
+  /// 构造函数，支持必填和可选字段
   Mistake({
     this.id,
     required this.content,
@@ -25,6 +27,7 @@ class Mistake {
     this.isCompleted = false,
   });
 
+  /// 转为Map，便于数据库存储
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -41,6 +44,7 @@ class Mistake {
     };
   }
 
+  /// 从Map反序列化为Mistake对象
   factory Mistake.fromMap(Map<String, dynamic> map) {
     return Mistake(
       id: map['id'],
@@ -57,6 +61,7 @@ class Mistake {
     );
   }
 
+  /// 拷贝方法，支持部分字段变更
   Mistake copyWith({
     int? id,
     String? content,

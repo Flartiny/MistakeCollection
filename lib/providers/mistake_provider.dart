@@ -2,15 +2,16 @@ import 'package:flutter/foundation.dart';
 import '../models/mistake.dart';
 import '../services/database_service.dart';
 
+/// MistakeProvider：错题全局状态管理，负责数据加载、增删改查、分组、复习等
 class MistakeProvider with ChangeNotifier {
-  final DatabaseService _databaseService = DatabaseService();
-  List<Mistake> _mistakes = [];
-  bool _isLoading = false;
+  final DatabaseService _databaseService = DatabaseService(); // 数据库服务
+  List<Mistake> _mistakes = []; // 错题列表
+  bool _isLoading = false; // 是否正在加载
 
   List<Mistake> get mistakes => _mistakes;
   bool get isLoading => _isLoading;
 
-  // 获取所有错题
+  // 获取所有错题（异步加载，自动通知界面刷新）
   Future<void> loadMistakes() async {
     _isLoading = true;
     notifyListeners();
@@ -25,7 +26,7 @@ class MistakeProvider with ChangeNotifier {
     }
   }
 
-  // 添加错题
+  // 添加错题，插入数据库并更新本地列表
   Future<void> addMistake(Mistake mistake) async {
     try {
       final id = await _databaseService.insertMistake(mistake);
@@ -37,7 +38,7 @@ class MistakeProvider with ChangeNotifier {
     }
   }
 
-  // 更新错题
+  // 更新错题，数据库和本地同步
   Future<void> updateMistake(Mistake mistake) async {
     try {
       await _databaseService.updateMistake(mistake);
@@ -62,7 +63,7 @@ class MistakeProvider with ChangeNotifier {
     }
   }
 
-  // 获取复习题目
+  // 获取待复习错题（未完成）
   Future<List<Mistake>> getMistakesForReview() async {
     try {
       return await _databaseService.getMistakesForReview();
@@ -72,7 +73,7 @@ class MistakeProvider with ChangeNotifier {
     }
   }
 
-  // 按学科分组获取错题
+  // 按学科分组错题，返回Map<学科, List<Mistake>>
   Map<String, List<Mistake>> getMistakesBySubject() {
     final Map<String, List<Mistake>> grouped = {};
     for (final mistake in _mistakes) {
@@ -84,7 +85,7 @@ class MistakeProvider with ChangeNotifier {
     return grouped;
   }
 
-  // 按题型分组获取错题
+  // 按题型分组错题
   Map<String, List<Mistake>> getMistakesByType() {
     final Map<String, List<Mistake>> grouped = {};
     for (final mistake in _mistakes) {
@@ -96,7 +97,7 @@ class MistakeProvider with ChangeNotifier {
     return grouped;
   }
 
-  // 按知识点分组获取错题
+  // 按知识点分组错题
   Map<String, List<Mistake>> getMistakesByKnowledgePoint() {
     final Map<String, List<Mistake>> grouped = {};
     for (final mistake in _mistakes) {
@@ -108,7 +109,7 @@ class MistakeProvider with ChangeNotifier {
     return grouped;
   }
 
-  // 标记题目为已完成
+  // 标记题目为已完成，自动更新时间和复习次数
   Future<void> markAsCompleted(int id) async {
     final index = _mistakes.indexWhere((m) => m.id == id);
     if (index != -1) {
@@ -121,7 +122,7 @@ class MistakeProvider with ChangeNotifier {
     }
   }
 
-  // 根据遗忘曲线计算下次复习时间
+  // 根据遗忘曲线计算下次复习时间，间隔递增
   DateTime calculateNextReviewTime(Mistake mistake) {
     final now = DateTime.now();
     final daysSinceLastReview = now.difference(mistake.lastReviewed).inDays;

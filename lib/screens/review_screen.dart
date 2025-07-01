@@ -4,7 +4,9 @@ import 'package:provider/provider.dart';
 import '../providers/mistake_provider.dart';
 import '../models/mistake.dart';
 
+// 错题复习界面，支持遗忘曲线推送、进度展示、复习操作
 class ReviewScreen extends StatefulWidget {
+  /// 错题复习页，负责按遗忘曲线推送题目，支持标记完成、进度展示
   const ReviewScreen({super.key});
 
   @override
@@ -12,15 +14,15 @@ class ReviewScreen extends StatefulWidget {
 }
 
 class _ReviewScreenState extends State<ReviewScreen> {
-  int _currentIndex = 0;
-  List<Mistake> _reviewMistakes = [];
-  PageController? _pageController;
+  int _currentIndex = 0; // 当前复习题目索引
+  List<Mistake> _reviewMistakes = []; // 待复习题目列表
+  PageController? _pageController; // 翻页控制器
 
   @override
   void initState() {
     super.initState();
     _pageController = PageController();
-    _loadReviewMistakes();
+    _loadReviewMistakes(); // 初始化时加载待复习题目
   }
 
   @override
@@ -33,7 +35,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
     final provider = context.read<MistakeProvider>();
     final allMistakes = await provider.getMistakesForReview();
     
-    // 根据遗忘曲线算法排序
+    // 根据遗忘曲线算法排序，优先推送最需要复习的题目
     allMistakes.sort((a, b) {
       final aNextReview = provider.calculateNextReviewTime(a);
       final bNextReview = provider.calculateNextReviewTime(b);
@@ -47,15 +49,16 @@ class _ReviewScreenState extends State<ReviewScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Scaffold为页面基础结构，包含AppBar、主体内容
     return Scaffold(
       appBar: AppBar(
         title: const Text('错题复习'),
       ),
       body: _reviewMistakes.isEmpty
-          ? _buildEmptyState()
+          ? _buildEmptyState() // 无题目时展示空状态
           : Column(
               children: [
-                _buildProgressIndicator(),
+                _buildProgressIndicator(), // 顶部进度条
                 Expanded(
                   child: PageView.builder(
                     controller: _pageController,
@@ -68,8 +71,8 @@ class _ReviewScreenState extends State<ReviewScreen> {
                     itemBuilder: (context, index) {
                       return Column(
                         children: [
-                          _buildReviewCard(index),
-                          _buildActionButtons(),
+                          _buildReviewCard(index), // 题目卡片
+                          _buildActionButtons(),   // 操作按钮
                         ],
                       );
                     },
@@ -81,6 +84,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
   }
 
   Widget _buildEmptyState() {
+    // 构建空状态提示（全部复习完成）
     return const Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -120,6 +124,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
   }
 
   Widget _buildProgressIndicator() {
+    // 构建顶部进度条，显示当前进度
     return Container(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -157,6 +162,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
   }
 
   Widget _buildReviewCard([int? index]) {
+    // 构建单个复习题目卡片，展示题目信息、标签、复习次数等
     final int showIndex = index ?? _currentIndex;
     if (showIndex >= _reviewMistakes.length) {
       return _buildEmptyState();
